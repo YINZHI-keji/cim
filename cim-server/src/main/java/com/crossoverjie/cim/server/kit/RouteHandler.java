@@ -1,12 +1,13 @@
 package com.crossoverjie.cim.server.kit;
 
-import com.crossoverjie.cim.common.core.proxy.ProxyManager;
+import com.crossoverjie.cim.common.core.proxy.RpcProxyManager;
 import com.crossoverjie.cim.common.pojo.CIMUserInfo;
 import com.crossoverjie.cim.route.api.RouteApi;
 import com.crossoverjie.cim.route.api.vo.req.ChatReqVO;
 import com.crossoverjie.cim.server.config.AppConfiguration;
 import com.crossoverjie.cim.server.util.SessionSocketHolder;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
@@ -26,20 +27,22 @@ import java.io.IOException;
 @Slf4j
 public class RouteHandler {
 
-    @Autowired
+    @Resource
     private OkHttpClient okHttpClient;
 
-    @Autowired
+    @Resource
     private AppConfiguration configuration;
+
+    @Resource
+    private RouteApi routeApi;
 
     /**
      * 用户下线
      *
      * @param userInfo
      * @param channel
-     * @throws IOException
      */
-    public void userOffLine(CIMUserInfo userInfo, NioSocketChannel channel) throws IOException {
+    public void userOffLine(CIMUserInfo userInfo, NioSocketChannel channel) {
         if (userInfo != null) {
             log.info("Account [{}] offline", userInfo.getUserName());
             SessionSocketHolder.removeSession(userInfo.getUserId());
@@ -58,16 +61,8 @@ public class RouteHandler {
      * @throws IOException
      */
     public void clearRouteInfo(CIMUserInfo userInfo) {
-        RouteApi routeApi = new ProxyManager<>(RouteApi.class, configuration.getRouteUrl(), okHttpClient).getInstance();
-        Response response = null;
         ChatReqVO vo = new ChatReqVO(userInfo.getUserId(), userInfo.getUserName());
-        try {
-            response = (Response) routeApi.offLine(vo);
-        } catch (Exception e){
-            log.error("Exception",e);
-        }finally {
-            response.body().close();
-        }
+        routeApi.offLine(vo);
     }
 
 }

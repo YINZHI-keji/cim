@@ -1,19 +1,17 @@
 package com.crossoverjie.cim.client.service.impl.command;
 
-import com.crossoverjie.cim.client.client.CIMClient;
-import com.crossoverjie.cim.client.service.EchoService;
+import com.crossoverjie.cim.client.sdk.Client;
+import com.crossoverjie.cim.client.sdk.Event;
 import com.crossoverjie.cim.client.service.InnerCommand;
 import com.crossoverjie.cim.client.service.MsgLogger;
-import com.crossoverjie.cim.client.service.RouteRequest;
-import com.crossoverjie.cim.client.service.ShutDownMsg;
+import com.crossoverjie.cim.client.service.ShutDownSign;
 import com.crossoverjie.cim.common.data.construct.RingBufferWheel;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import jakarta.annotation.Resource;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.stereotype.Service;
 
 /**
  * Function:
@@ -24,47 +22,43 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Service
+@ConditionalOnWebApplication
 public class ShutDownCommand implements InnerCommand {
 
-    @Autowired
-    private RouteRequest routeRequest ;
+    @Resource
+    private Client cimClient;
 
-    @Autowired
-    private CIMClient cimClient;
-
-    @Autowired
+    @Resource
     private MsgLogger msgLogger;
 
     @Resource(name = "callBackThreadPool")
     private ThreadPoolExecutor callBackExecutor;
 
-    @Autowired
-    private EchoService echoService ;
+    @Resource
+    private Event event;
 
+    @Resource
+    private ShutDownSign shutDownSign;
 
-    @Autowired
-    private ShutDownMsg shutDownMsg ;
-
-    @Autowired
+    @Resource
     private RingBufferWheel ringBufferWheel ;
 
     @Override
-    public void process(String msg) {
-        echoService.echo("cim client closing...");
-        shutDownMsg.shutdown();
-        routeRequest.offLine();
+    public void process(String msg) throws Exception {
+        event.info("cim client closing...");
+        cimClient.close();
+        shutDownSign.shutdown();
         msgLogger.stop();
         callBackExecutor.shutdown();
         ringBufferWheel.stop(false);
         try {
             while (!callBackExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
-                echoService.echo("thread pool closing");
+                event.info("thread pool closing");
             }
-            cimClient.close();
-        } catch (InterruptedException e) {
-            log.error("InterruptedException", e);
+        } catch (Exception e) {
+            log.error("exception", e);
         }
-        echoService.echo("cim close success!");
+        event.info("cim close success!");
         System.exit(0);
     }
 }

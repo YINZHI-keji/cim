@@ -1,21 +1,14 @@
 package com.crossoverjie.cim.client.service.impl;
 
-import com.crossoverjie.cim.client.config.AppConfiguration;
+import com.crossoverjie.cim.client.sdk.Client;
 import com.crossoverjie.cim.client.service.InnerCommand;
 import com.crossoverjie.cim.client.service.InnerCommandContext;
 import com.crossoverjie.cim.client.service.MsgHandle;
-import com.crossoverjie.cim.client.service.MsgLogger;
-import com.crossoverjie.cim.client.service.RouteRequest;
-import com.crossoverjie.cim.client.vo.req.GroupReqVO;
-import com.crossoverjie.cim.client.vo.req.P2PReqVO;
 import com.crossoverjie.cim.common.util.StringUtil;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
+import com.crossoverjie.cim.route.api.vo.req.P2PReqVO;
 import jakarta.annotation.Resource;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
  * Function:
@@ -27,29 +20,18 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 public class MsgHandler implements MsgHandle {
-    @Autowired
-    private RouteRequest routeRequest;
-
-    @Autowired
-    private AppConfiguration configuration;
-
-    @Resource(name = "callBackThreadPool")
-    private ThreadPoolExecutor executor;
 
 
-    @Autowired
-    private MsgLogger msgLogger;
-
-    @Autowired
-    private ClientInfo clientInfo;
-
-    @Autowired
+    @Resource
     private InnerCommandContext innerCommandContext ;
+
+    @Resource
+    private Client client;
 
     private boolean aiModel = false;
 
     @Override
-    public void sendMsg(String msg) {
+    public void sendMsg(String msg) throws Exception {
         if (aiModel) {
             aiChat(msg);
         } else {
@@ -57,33 +39,16 @@ public class MsgHandler implements MsgHandle {
         }
     }
 
-    /**
-     * 正常聊天
-     *
-     * @param msg
-     */
-    private void normalChat(String msg) {
+    private void normalChat(String msg) throws Exception {
         String[] totalMsg = msg.split(";;");
         if (totalMsg.length > 1) {
-            //私聊
             P2PReqVO p2PReqVO = new P2PReqVO();
-            p2PReqVO.setUserId(configuration.getUserId());
             p2PReqVO.setReceiveUserId(Long.parseLong(totalMsg[0]));
             p2PReqVO.setMsg(totalMsg[1]);
-            try {
-                p2pChat(p2PReqVO);
-            } catch (Exception e) {
-                log.error("Exception", e);
-            }
+            client.sendP2P(p2PReqVO);
 
         } else {
-            //群聊
-            GroupReqVO groupReqVO = new GroupReqVO(configuration.getUserId(), msg);
-            try {
-                groupChat(groupReqVO);
-            } catch (Exception e) {
-                log.error("Exception", e);
-            }
+            client.sendGroup(msg);
         }
     }
 
@@ -102,18 +67,6 @@ public class MsgHandler implements MsgHandle {
     }
 
     @Override
-    public void groupChat(GroupReqVO groupReqVO) throws Exception {
-        routeRequest.sendGroupMsg(groupReqVO);
-    }
-
-    @Override
-    public void p2pChat(P2PReqVO p2PReqVO) throws Exception {
-
-        routeRequest.sendP2PMsg(p2PReqVO);
-
-    }
-
-    @Override
     public boolean checkMsg(String msg) {
         if (StringUtil.isEmpty(msg)) {
             log.warn("不能发送空消息！");
@@ -123,7 +76,7 @@ public class MsgHandler implements MsgHandle {
     }
 
     @Override
-    public boolean innerCommand(String msg) {
+    public boolean innerCommand(String msg) throws Exception {
 
         if (msg.startsWith(":")) {
 
@@ -135,28 +88,6 @@ public class MsgHandler implements MsgHandle {
         } else {
             return false;
         }
-
-
-    }
-
-    /**
-     * 关闭系统
-     */
-    @Override
-    public void shutdown() {
-        log.info("系统关闭中。。。。");
-        routeRequest.offLine();
-        msgLogger.stop();
-        executor.shutdown();
-        try {
-            while (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
-                log.info("线程池关闭中。。。。");
-            }
-//            shutdownService.closeCIMClient();
-        } catch (InterruptedException e) {
-            log.error("InterruptedException", e);
-        }
-        System.exit(0);
     }
 
     @Override
